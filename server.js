@@ -7,15 +7,20 @@ const {
 const pino = require('pino');
 const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const express = require('express');
+const fs = require('fs');
 
+// 🌐 سيرفر Express لإبقاء البوت شغال 24/7 على Railway
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get('/', (req, res) => res.send('👑 بوت ساسكي شغال بنجاح!'));
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 السيرفر شغال على المنفذ ${PORT}`));
 
+// 👑 رقم القائد (صاحب البوت)
 const OWNER_NUMBER = '201274934730';
 const OWNER_JID = `${OWNER_NUMBER}@s.whatsapp.net`;
 const SLAP_STICKER_URL = 'https://media.giphy.com/media/Gf3AUz3eBNbTW/giphy.gif';
+
+// 🖼️ رابط صورة قائمة ساسكي
 const MENU_IMAGE_URL = 'https://i.ibb.co/3kWy9Ym/sasuke.jpg';
 
 const MENU_MAIN = `👑『 بوت القائد اسلام 』👑
@@ -114,7 +119,9 @@ let isEnabled = true;
 let bombGame = {};
 
 async function startBot() {
-    const { state, saveCreds } = await useMultiFileAuthState('./session');
+    // ✅ FIX: استخدم /tmp عشان Railway
+    if (!fs.existsSync('/tmp/session')) fs.mkdirSync('/tmp/session', { recursive: true });
+    const { state, saveCreds } = await useMultiFileAuthState('/tmp/session');
     const { version } = await fetchLatestBaileysVersion();
 
     const client = makeWASocket({
@@ -126,11 +133,21 @@ async function startBot() {
     });
 
     if (!client.authState.creds.registered) {
-        const phoneNumber = process.env.BOT_NUMBER || process.env.PHONE_NUMBER || '201274934730';
-        const code = await client.requestPairingCode(phoneNumber.trim());
-        console.log(`\n========================================`);
-        console.log(`🔑 كود الاقتران المكون من 8 أرقام: \x1b[32m${code}\x1b[0m`);
-        console.log(`========================================\n`);
+        console.log('⏳ بيجهز الاتصال لطلب الكود... استنى 5 ثواني');
+        await new Promise(r => setTimeout(r, 5000));
+        try {
+            const phoneNumber = (process.env.BOT_NUMBER || process.env.PHONE_NUMBER || '201274934730').replace(/[^0-9]/g, '');
+            console.log('بيطلب كود للرقم:', phoneNumber);
+            const code = await client.requestPairingCode(phoneNumber);
+            console.log(`\n========================================`);
+            console.log(`🔑 كود الاقتران المكون من 8 أرقام: ${code}`);
+            console.log(`========================================\n`);
+        } catch (err) {
+            console.log('❌ فشل طلب الكود:', err.message);
+            console.log('🔄 هيحاول تاني بعد 15 ثانية...');
+            await new Promise(r => setTimeout(r, 15000));
+            // لا تعمل throw عشان مايعملش CRASHED
+        }
     }
 
     client.ev.on('creds.update', saveCreds);
@@ -173,9 +190,11 @@ async function startBot() {
     client.ev.on('messages.upsert', async (m) => {
         const msg = m.messages[0];
         if (!msg.message || msg.key.fromMe) return;
+
         const from = msg.key.remoteJid;
         const isGroup = from.endsWith('@g.us');
         if (!isGroup) return;
+
         const body = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
         const text = body.trim();
         const lowerText = text.toLowerCase();
@@ -183,6 +202,7 @@ async function startBot() {
         const senderNum = sender.split('@')[0];
         const isOwner = sender.replace(/[^0-9]/g, '') === OWNER_NUMBER;
         const title = isOwner? 'يا قائد سولوم 👑' : 'يا غالي ✨';
+
         const getTargetUser = () => {
             const contextInfo = msg.message.extendedTextMessage?.contextInfo;
             if (contextInfo?.participant) return contextInfo.participant;
@@ -246,6 +266,7 @@ async function startBot() {
                     text: `👋 @${senderNum} يصفع @${target.split('@')[0]}!`,
                     mentions: [sender, target]
                 }, { quoted: msg });
+
                 const sticker = new Sticker(SLAP_STICKER_URL, {
                     pack: 'بوت ساسكي 👑',
                     author: 'صفع 💥',
@@ -266,28 +287,52 @@ async function startBot() {
                 mentions: [sender]
             }, { quoted: msg });
         }
+
         if (text === '.فك' && bombGame[from]) {
             bombGame[from] = false;
-            return await client.sendMessage(from, { text: `😎 @${senderNum} فكهاا بطل 💪`, mentions: [sender] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `😎 @${senderNum} فكهاا بطل 💪`,
+                mentions: [sender]
+            }, { quoted: msg });
         }
+
         if (text === '.نرد') {
-            return await client.sendMessage(from, { text: `🎲 @${senderNum} رميت النرد طلعلك *${Math.floor(Math.random() * 6) + 1}*`, mentions: [sender] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `🎲 @${senderNum} رميت النرد طلعلك *${Math.floor(Math.random() * 6) + 1}*`,
+                mentions: [sender]
+            }, { quoted: msg });
         }
+
         if (text === '.سلم') {
-            return await client.sendMessage(from, { text: `🪜 @${senderNum} رميت السلم طلعلك *${Math.floor(Math.random() * 6) + 1}*`, mentions: [sender] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `🪜 @${senderNum} رميت السلم طلعلك *${Math.floor(Math.random() * 6) + 1}*`,
+                mentions: [sender]
+            }, { quoted: msg });
         }
+
         if (text === '.روليت') {
             let r = Math.random() > 0.5? 'طاخ 💥 مت 😂💀' : 'تك 🔫 عشت يا محظوظ';
-            return await client.sendMessage(from, { text: `🔫 روليت روسي @${senderNum} -> ${r}`, mentions: [sender] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `🔫 روليت روسي @${senderNum} -> ${r}`,
+                mentions: [sender]
+            }, { quoted: msg });
         }
+
         if (text === '.حرامي' || text === '.مين الحرامي') {
             const groupMetadata = await client.groupMetadata(from);
             const participants = groupMetadata.participants;
             const random = participants[Math.floor(Math.random() * participants.length)];
-            return await client.sendMessage(from, { text: `🕵️ الحرامي هو @${random.id.split('@')[0]} 😂🔪`, mentions: [random.id] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `🕵️ الحرامي هو @${random.id.split('@')[0]} 😂🔪`,
+                mentions: [random.id]
+            }, { quoted: msg });
         }
+
         if (text === '.تفجير') {
-            return await client.sendMessage(from, { text: `💥 بوووووم @${senderNum} فجر الجروب كله 😂💣`, mentions: [sender] }, { quoted: msg });
+            return await client.sendMessage(from, {
+                text: `💥 بوووووم @${senderNum} فجر الجروب كله 😂💣`,
+                mentions: [sender]
+            }, { quoted: msg });
         }
     });
 
@@ -296,10 +341,19 @@ async function startBot() {
             const chat = update.id;
             for (let participant of update.participants) {
                 let userNum = participant.split('@')[0];
-                await client.sendMessage(chat, {
-                    text: `نورت الجروب @${userNum} 🦁🔥\n📜 اكتب.قوانين`,
-                    mentions: [participant]
-                });
+                let isGirl = /ة$|سارة|مريم|ملك|نور|سما|حلا|جنا|ليلى|شهد/i.test(userNum);
+
+                if (isGirl) {
+                    await client.sendMessage(chat, {
+                        text: `نورتي الجروب يا وردة @${userNum} 👑💖\n📜 اكتبي.قوانين\n🎮 اكتبي.العاب`,
+                        mentions: [participant]
+                    });
+                } else {
+                    await client.sendMessage(chat, {
+                        text: `نورت الجروب يا الغالي @${userNum} 🦁🔥\n📜 اكتب.قوانين\n🎮 اكتب.العاب`,
+                        mentions: [participant]
+                    });
+                }
             }
         }
     });
