@@ -136,26 +136,7 @@ let isEnabled = true;
 let bombGame = {};
 
 async function startBot() {
-    // 🔥 كل ريستارت = كود جديد
-    try {
-        if (fs.existsSync('/tmp/session')) {
-            const check = fs.readdirSync('/tmp/session');
-            if (check.length === 0) {
-                fs.rmSync('/tmp/session', { recursive: true, force: true });
-            } else {
-                // لو مش مربوط امسح عشان يطلع كود جديد نضيف
-                try {
-                    const tempAuth = await useMultiFileAuthState('/tmp/session');
-                    if (!tempAuth.state.creds.registered) {
-                        fs.rmSync('/tmp/session', { recursive: true, force: true });
-                        console.log('🗑️ مسح السيشن القديم عشان يطلع كود جديد بعد الريستارت');
-                    }
-                } catch(e) {
-                    fs.rmSync('/tmp/session', { recursive: true, force: true });
-                }
-            }
-        }
-    } catch(e){}
+    try { fs.rmSync('/tmp/session', { recursive: true, force: true }); } catch(e){}
     if (!fs.existsSync('/tmp/session')) fs.mkdirSync('/tmp/session', { recursive: true });
 
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/session');
@@ -172,8 +153,8 @@ async function startBot() {
     globalClient = client;
 
     if (!client.authState.creds.registered) {
-        console.log('⏳ بيجهز الكود الجديد بعد الريستارت... استنى 5 ثواني');
-        await new Promise(r => setTimeout(r, 5000));
+        console.log('⏳ بيجهز الكود الجديد بعد الريستارت... استنى 8 ثواني');
+        await new Promise(r => setTimeout(r, 8000));
         try {
             const phoneNumber = (process.env.BOT_NUMBER || '201274934730').replace(/[^0-9]/g, '');
             const code = await client.requestPairingCode(phoneNumber);
@@ -182,7 +163,6 @@ async function startBot() {
             console.log(`========================================\n`);
         } catch (e) {
             console.log('❌ فشل طلب الكود:', e.message);
-            console.log('💡 تقدر تطلبه يدويا من /request-code');
         }
     }
 
@@ -377,24 +357,4 @@ async function startBot() {
     client.ev.on('group-participants.update', async (update) => {
         if (update.action === 'add') {
             const chat = update.id;
-            for (let participant of update.participants) {
-                let userNum = participant.split('@')[0];
-                let isGirl = /ة$|سارة|مريم|ملك|نور|سما|حلا|جنا|ليلى|شهد/i.test(userNum);
-
-                if (isGirl) {
-                    await client.sendMessage(chat, {
-                        text: `نورتي الجروب يا وردة @${userNum} 👑💖\n📜 اكتبي.قوانين\n🎮 اكتبي.العاب`,
-                        mentions: [participant]
-                    });
-                } else {
-                    await client.sendMessage(chat, {
-                        text: `نورت الجروب يا الغالي @${userNum} 🦁🔥\n📜 اكتب.قوانين\n🎮 اكتب.العاب`,
-                        mentions: [participant]
-                    });
-                }
-            }
-        }
-    });
-}
-
-startBot();
+            for (let participant of update.part
