@@ -12,7 +12,24 @@ const fs = require('fs');
 // 🌐 سيرفر Express لإبقاء البوت شغال 24/7 على Railway
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.get('/', (req, res) => res.send('👑 بوت ساسكي شغال بنجاح!'));
+let globalClient = null;
+
+app.get('/', (req, res) => res.send('👑 بوت ساسكي شغال بنجاح! عشان تطلب الكود افتح /request-code'));
+app.get('/request-code', async (req, res) => {
+    if (!globalClient) return res.send('⏳ البوت لسه بيحمل... حدث الصفحة بعد 10 ثواني');
+    if (globalClient.authState.creds.registered) return res.send('✅ البوت مربوط اصلا ومش محتاج كود!');
+    try {
+        const phoneNumber = (process.env.BOT_NUMBER || '201274934730').replace(/[^0-9]/g, '');
+        const code = await globalClient.requestPairingCode(phoneNumber);
+        console.log(`\n========================================`);
+        console.log(`🔑 كود يدوي اتطلب: ${code} للرقم ${phoneNumber}`);
+        console.log(`========================================\n`);
+        res.send(`<h1 style="font-size:50px; text-align:center;">${code}</h1><p style="text-align:center;">الكود للرقم ${phoneNumber} - اكتبه في واتساب > الاجهزة المرتبطة > ربط برقم هاتف</p>`);
+    } catch (e) {
+        res.send('❌ فشل: ' + e.message);
+    }
+});
+
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 السيرفر شغال على المنفذ ${PORT}`));
 
 // 👑 رقم القائد (صاحب البوت)
@@ -131,26 +148,10 @@ async function startBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
-    // 🔥 التعديل الوحيد هنا: يطلع كود جديد كل 30 ثانية
+    globalClient = client;
+
     if (!client.authState.creds.registered) {
-        console.log('⏳ بيجهز الاتصال لطلب الكود... استنى 5 ثواني');
-        await new Promise(r => setTimeout(r, 5000));
-        const phoneNumber = (process.env.BOT_NUMBER || '201274934730').replace(/[^0-9]/g, '');
-
-        const getCode = async () => {
-            if (client.authState.creds.registered) return;
-            try {
-                const code = await client.requestPairingCode(phoneNumber);
-                console.log(`\n========================================`);
-                console.log(`🔑 كود الاقتران: ${code} للرقم ${phoneNumber}`);
-                console.log(`========================================\n`);
-            } catch (e) {
-                console.log('⚠️ فشل طلب الكود، هيحاول تاني...', e.message);
-            }
-        };
-
-        await getCode(); // اول كود فورا
-        setInterval(getCode, 30000); // كود جديد كل 30 ثانية
+        console.log('✅ البوت جاهز. افتح لينك /request-code عشان تطلب الكود يدويا');
     }
 
     client.ev.on('creds.update', saveCreds);
