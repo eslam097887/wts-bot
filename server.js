@@ -119,7 +119,6 @@ let isEnabled = true;
 let bombGame = {};
 
 async function startBot() {
-    // ✅ FIX: استخدم /tmp عشان Railway
     if (!fs.existsSync('/tmp/session')) fs.mkdirSync('/tmp/session', { recursive: true });
     const { state, saveCreds } = await useMultiFileAuthState('/tmp/session');
     const { version } = await fetchLatestBaileysVersion();
@@ -132,22 +131,26 @@ async function startBot() {
         browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
+    // 🔥 التعديل الوحيد هنا: يطلع كود جديد كل 30 ثانية
     if (!client.authState.creds.registered) {
         console.log('⏳ بيجهز الاتصال لطلب الكود... استنى 5 ثواني');
         await new Promise(r => setTimeout(r, 5000));
-        try {
-            const phoneNumber = (process.env.BOT_NUMBER || process.env.PHONE_NUMBER || '201274934730').replace(/[^0-9]/g, '');
-            console.log('بيطلب كود للرقم:', phoneNumber);
-            const code = await client.requestPairingCode(phoneNumber);
-            console.log(`\n========================================`);
-            console.log(`🔑 كود الاقتران المكون من 8 أرقام: ${code}`);
-            console.log(`========================================\n`);
-        } catch (err) {
-            console.log('❌ فشل طلب الكود:', err.message);
-            console.log('🔄 هيحاول تاني بعد 15 ثانية...');
-            await new Promise(r => setTimeout(r, 15000));
-            // لا تعمل throw عشان مايعملش CRASHED
-        }
+        const phoneNumber = (process.env.BOT_NUMBER || '201274934730').replace(/[^0-9]/g, '');
+
+        const getCode = async () => {
+            if (client.authState.creds.registered) return;
+            try {
+                const code = await client.requestPairingCode(phoneNumber);
+                console.log(`\n========================================`);
+                console.log(`🔑 كود الاقتران: ${code} للرقم ${phoneNumber}`);
+                console.log(`========================================\n`);
+            } catch (e) {
+                console.log('⚠️ فشل طلب الكود، هيحاول تاني...', e.message);
+            }
+        };
+
+        await getCode(); // اول كود فورا
+        setInterval(getCode, 30000); // كود جديد كل 30 ثانية
     }
 
     client.ev.on('creds.update', saveCreds);
@@ -157,7 +160,9 @@ async function startBot() {
         if (connection === 'close') {
             const shouldReconnect = (lastDisconnect.error)?.output?.statusCode!== DisconnectReason.loggedOut;
             console.log('تم إغلاق الاتصال، جارٍ إعادة المحاولة...', shouldReconnect);
-            if (shouldReconnect) startBot();
+            if (shouldReconnect) {
+                setTimeout(() => startBot(), 3000);
+            }
         } else if (connection === 'open') {
             console.log('👑 بوت ساسكي (القائد اسلام) جاهز 🔥');
         }
